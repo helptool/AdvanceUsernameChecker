@@ -1,236 +1,189 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AvgecFinder — Instagram Username Checker</title>
-  <style>
-    body {
-      font-family: 'Poppins', sans-serif;
-      background: #f5f7fa;
-      color: #222;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      padding: 40px 20px;
-      min-height: 100vh;
-    }
-
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 10px;
-      color: #333;
-    }
-
-    .card {
-      background: white;
-      padding: 20px 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-      max-width: 600px;
-      width: 100%;
-      text-align: center;
-    }
-
-    .input-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
-      margin: 15px 0;
-    }
-
-    input, select, button {
-      padding: 10px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      font-size: 1rem;
-    }
-
-    button {
-      background: #4a90e2;
-      color: white;
-      border: none;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    button:hover {
-      background: #357ab8;
-    }
-
-    .progress {
-      width: 100%;
-      height: 10px;
-      background: #eee;
-      border-radius: 5px;
-      overflow: hidden;
-      margin-top: 15px;
-    }
-
-    .progress-bar {
-      height: 100%;
-      background: #4a90e2;
-      width: 0%;
-      transition: width 0.3s ease;
-    }
-
-    #results {
-      margin-top: 20px;
-      text-align: left;
-      width: 100%;
-    }
-
-    .username {
-      background: #f0f4ff;
-      padding: 8px 12px;
-      margin: 5px 0;
-      border-radius: 6px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .username button {
-      background: #357ab8;
-      padding: 5px 10px;
-      font-size: 0.8rem;
-    }
-
-    .count {
-      margin-top: 10px;
-      font-weight: 600;
-      color: #333;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AvgecFinder — Username Checker</title>
+<style>
+  body { font-family: 'Poppins', sans-serif; background:#121212; color:#fff; text-align:center; padding:30px; }
+  h1 { color:#ffcc00; }
+  .controls { background:#1b1b1b; padding:20px; border-radius:12px; max-width:500px; margin:auto; }
+  input, select, button { padding:8px; margin:5px; border-radius:6px; border:none; font-size:1rem; text-align:center; }
+  input { width:40px; text-transform:lowercase; }
+  button { cursor:pointer; font-weight:600; background:#ffcc00; color:#000; transition:0.2s; }
+  button:hover { background:#ffe066; }
+  .progress-container { width:100%; background:#444; border-radius:10px; margin:10px 0; height:16px; overflow:hidden; }
+  .progress-bar { height:100%; width:0%; background:#00e676; border-radius:10px; transition:width 0.1s ease; }
+  .results { margin-top:15px; background:#111; border-radius:10px; padding:15px; max-height:300px; overflow-y:auto; }
+  .username { margin:5px; background:#333; padding:5px 8px; border-radius:5px; cursor:pointer; display:inline-block; }
+  .username:hover { background:#00e676; color:#000; }
+  #counter { margin-top:10px; color:#00e676; font-weight:600; }
+</style>
 </head>
 <body>
-  <h1>AvgecFinder — Instagram Username Checker</h1>
-  <div class="card">
-    <label>How many characters do you want in your username?</label>
-    <br />
-    <select id="charCount" onchange="generateBoxes()">
-      <option value="">Select</option>
-      <option value="3">3</option>
-      <option value="4">4</option>
-      <option value="5">5</option>
-      <option value="6">6</option>
-      <option value="7">7</option>
-      <option value="8">8</option>
-    </select>
 
-    <div id="inputBoxes" class="input-row"></div>
+<h1>AvgecFinder</h1>
+<p>Smart Instagram Username Availability Checker</p>
 
-    <button onclick="startCheck()">Start Checking</button>
-    <button onclick="stopCheck()">Stop</button>
+<div class="controls">
+  <label>Select Username Length:</label>
+  <select id="length" onchange="generateBoxes()">
+    <option value="">Select</option>
+    <option value="3">3</option>
+    <option value="4">4</option>
+    <option value="5">5</option>
+    <option value="6">6</option>
+  </select>
 
-    <div class="progress">
-      <div class="progress-bar" id="progressBar"></div>
-    </div>
+  <div id="charBoxes" style="margin-top:10px;"></div>
 
-    <div class="count" id="countText">Checked: 0</div>
-    <div id="results"></div>
+  <button onclick="startChecking()">Start</button>
+  <button onclick="stopChecking()">Stop</button>
+
+  <div class="progress-container">
+    <div class="progress-bar" id="progressBar"></div>
   </div>
+  <p id="progressText">Progress: 0%</p>
+  <p id="counter">Available Usernames: 0</p>
+</div>
 
-  <script>
-    let stopFlag = false;
-    let checkedCount = 0;
-    let totalCombinations = 0;
+<div class="results" id="results"></div>
 
-    const charset = "abcdefghijklmnopqrstuvwxyz0123456789._".split("");
+<script>
+const letters = "abcdefghijklmnopqrstuvwxyz";
+const numbers = "0123456789";
+const specials = "._";
+let stopFlag = false;
+let batchSize = 50; // number of usernames sent to Worker per batch
 
-    function generateBoxes() {
-      const count = document.getElementById("charCount").value;
-      const container = document.getElementById("inputBoxes");
-      container.innerHTML = "";
-      for (let i = 0; i < count; i++) {
-        const inp = document.createElement("input");
-        inp.maxLength = 1;
-        inp.placeholder = "_";
-        container.appendChild(inp);
+function generateBoxes(){
+  const len = parseInt(document.getElementById('length').value);
+  const boxContainer = document.getElementById('charBoxes');
+  boxContainer.innerHTML = '';
+  for(let i=0;i<len;i++){
+    const input = document.createElement('input');
+    input.type='text';
+    input.maxLength=1;
+    input.placeholder='_';
+    input.id='char'+i;
+    boxContainer.appendChild(input);
+  }
+}
+
+function stopChecking(){
+  stopFlag=true;
+  alert("⛔ Checking stopped by user.");
+}
+
+// Helper function to generate combinations recursively with fixed letters
+function* generateCombinations(len, fixed){
+  const chars = letters + numbers + specials;
+  function* helper(index, prefix){
+    if(stopFlag) return;
+    if(index===len){
+      yield prefix;
+      return;
+    }
+    if(fixed[index]){
+      yield* helper(index+1, prefix+fixed[index].toLowerCase());
+    } else {
+      for(let c of chars){
+        yield* helper(index+1, prefix+c);
       }
     }
+  }
+  yield* helper(0,'');
+}
 
-    async function startCheck() {
-      stopFlag = false;
-      checkedCount = 0;
-      document.getElementById("results").innerHTML = "";
-      const charCount = parseInt(document.getElementById("charCount").value);
-      if (!charCount) {
-        alert("Please select a character count!");
-        return;
-      }
+// Send batch to Cloudflare Worker
+async function checkBatch(workerURL, usernames){
+  try{
+    const res = await fetch(workerURL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({usernames})
+    });
+    return await res.json();
+  }catch(e){
+    console.error(e);
+    return {};
+  }
+}
 
-      const inputs = Array.from(document.querySelectorAll("#inputBoxes input")).map(i => i.value.trim());
-      const fixed = inputs.map(v => (v === "" ? null : v));
+async function startChecking(){
+  stopFlag=false;
+  const len = parseInt(document.getElementById('length').value);
+  if(!len) return alert("Please select username length first!");
+  
+  let fixed = [];
+  for(let i=0;i<len;i++){
+    fixed.push(document.getElementById('char'+i)?.value || '');
+  }
 
-      const allCombos = generateAllCombos(fixed, charCount);
-      totalCombinations = allCombos.length;
+  const resultsDiv = document.getElementById('results');
+  resultsDiv.innerHTML='';
+  const progressBar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
+  const counter = document.getElementById('counter');
 
-      for (let combo of allCombos) {
-        if (stopFlag) break;
-        const available = await checkInstagram(combo);
-        checkedCount++;
-        updateProgress();
+  let totalChecked=0;
+  let availableCount=0;
 
-        if (available) showResult(combo);
-      }
-    }
+  const workerURL = "https://avgecfinder-worker.aryamangupta089.workers.dev";
+  const gen = generateCombinations(len, fixed);
+  let batch=[];
+  let totalCombos=Math.pow((letters+numbers+specials).length,len); // approximate
 
-    function stopCheck() {
-      stopFlag = true;
-    }
-
-    function generateAllCombos(fixed, length) {
-      let results = [];
-
-      function helper(prefix, index) {
-        if (index === length) {
-          if (!prefix.startsWith(".") && !prefix.endsWith(".")) results.push(prefix);
-          return;
+  for(let username of gen){
+    if(stopFlag) break;
+    if(username.startsWith('.')||username.endsWith('.')) continue; // skip invalid
+    batch.push(username);
+    if(batch.length>=batchSize){
+      const res = await checkBatch(workerURL,batch);
+      for(let key in res){
+        totalChecked++;
+        if(res[key]){
+          availableCount++;
+          const div=document.createElement('div');
+          div.textContent=key;
+          div.className='username';
+          div.onclick=()=>navigator.clipboard.writeText(key);
+          resultsDiv.appendChild(div);
         }
-
-        if (fixed[index]) {
-          helper(prefix + fixed[index], index + 1);
-        } else {
-          for (let ch of charset) {
-            helper(prefix + ch, index + 1);
-          }
-        }
       }
-
-      helper("", 0);
-      return results;
+      batch=[];
+      // Update progress
+      const progress=Math.min((totalChecked/totalCombos)*100,100);
+      progressBar.style.width=`${progress}%`;
+      progressText.innerText=`Progress: ${progress.toFixed(1)}% | Checked: ${totalChecked}`;
+      counter.innerText=`Available Usernames: ${availableCount}`;
+      await new Promise(r=>setTimeout(r,100)); // small delay between batches
     }
+  }
 
-    async function checkInstagram(username) {
-      try {
-        const res = await fetch(`https://www.instagram.com/${username}/`, { method: "GET" });
-        return res.status === 404;
-      } catch {
-        return false;
+  // Check remaining batch
+  if(batch.length>0 && !stopFlag){
+    const res = await checkBatch(workerURL,batch);
+    for(let key in res){
+      totalChecked++;
+      if(res[key]){
+        availableCount++;
+        const div=document.createElement('div');
+        div.textContent=key;
+        div.className='username';
+        div.onclick=()=>navigator.clipboard.writeText(key);
+        resultsDiv.appendChild(div);
       }
     }
+    const progress=Math.min((totalChecked/totalCombos)*100,100);
+    progressBar.style.width=`${progress}%`;
+    progressText.innerText=`Progress: ${progress.toFixed(1)}% | Checked: ${totalChecked}`;
+    counter.innerText=`Available Usernames: ${availableCount}`;
+  }
 
-    function updateProgress() {
-      const progress = (checkedCount / totalCombinations) * 100;
-      document.getElementById("progressBar").style.width = `${progress}%`;
-      document.getElementById("countText").innerText = `Checked: ${checkedCount} / ${totalCombinations}`;
-    }
+  if(!stopFlag) alert(`✅ Finished checking! ${availableCount} usernames available.`);
+}
+</script>
 
-    function showResult(username) {
-      const resultsDiv = document.getElementById("results");
-      const div = document.createElement("div");
-      div.className = "username";
-      div.innerHTML = `${username} <button onclick="copyUsername('${username}')">Copy</button>`;
-      resultsDiv.appendChild(div);
-    }
-
-    function copyUsername(username) {
-      navigator.clipboard.writeText(username);
-      alert(`Copied ${username}`);
-    }
-  </script>
 </body>
 </html>
