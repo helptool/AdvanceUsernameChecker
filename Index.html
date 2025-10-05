@@ -6,8 +6,8 @@
   <title>AvgecFinder — Instagram Username Checker</title>
   <style>
     body {
-      background: #0b0e17;
-      color: #e6edf5;
+      background: #0c0f18;
+      color: #f2f5fc;
       font-family: "Poppins", sans-serif;
       margin: 0;
       padding: 0;
@@ -16,25 +16,22 @@
       align-items: center;
       min-height: 100vh;
     }
-    .card {
-      width: 90%;
-      max-width: 650px;
+    .container {
+      width: 95%;
+      max-width: 700px;
       background: #141b2e;
-      border-radius: 16px;
-      padding: 25px;
       margin-top: 40px;
-      box-shadow: 0 0 25px rgba(0,0,0,0.5);
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 25px rgba(0,0,0,0.5);
     }
     h1 {
       text-align: center;
       color: #8b5cf6;
       font-weight: 700;
+      margin-bottom: 25px;
     }
-    label {
-      display: block;
-      margin-top: 15px;
-      font-weight: 500;
-    }
+    label { display: block; margin-top: 15px; font-weight: 500; }
     input, button {
       width: 100%;
       padding: 10px;
@@ -55,9 +52,7 @@
       margin-top: 15px;
       cursor: pointer;
     }
-    button:hover {
-      opacity: 0.9;
-    }
+    button:hover { opacity: 0.9; }
     #results {
       margin-top: 20px;
       max-height: 400px;
@@ -71,50 +66,65 @@
     .username-line {
       display: flex;
       justify-content: space-between;
-      padding: 3px 0;
+      align-items: center;
+      padding: 4px 0;
     }
     .copy-btn {
       background: none;
       border: none;
       color: #8b5cf6;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 13px;
     }
-    .copy-btn:hover {
-      text-decoration: underline;
-    }
+    .copy-btn:hover { text-decoration: underline; }
+    #status { margin-top: 10px; color: #06b6d4; font-size: 15px; }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="container">
     <h1>AvgecFinder</h1>
-
     <label>Username length</label>
     <input id="length" type="number" min="1" max="15" value="4">
 
     <label>Pattern (use _ for blanks, e.g. a__y)</label>
     <input id="pattern" type="text" placeholder="Use _ for blanks (optional)">
 
-    <button id="checkBtn">Generate & Check</button>
+    <button id="startBtn">Start Checking</button>
+    <button id="stopBtn" style="background:#ef4444;display:none;">Stop</button>
 
     <div id="status"></div>
     <div id="results"></div>
   </div>
 
   <script>
-    const chars = "abcdefghijklmnopqrstuvwxyz0123456789._";
+    const letters = "abcdefghijklmnopqrstuvwxyz";
+    const numbers = "0123456789";
+    const specials = "._";
     const api = "https://instagram-username-checker.vercel.app/api/check?username=";
 
-    document.getElementById("checkBtn").onclick = async () => {
+    let stopFlag = false;
+
+    document.getElementById("startBtn").onclick = startChecking;
+    document.getElementById("stopBtn").onclick = () => {
+      stopFlag = true;
+      document.getElementById("status").textContent = "⛔ Stopped by user.";
+      document.getElementById("startBtn").style.display = "block";
+      document.getElementById("stopBtn").style.display = "none";
+    };
+
+    async function startChecking() {
+      stopFlag = false;
+      document.getElementById("results").innerHTML = "";
+      const statusDiv = document.getElementById("status");
       const len = +document.getElementById("length").value;
       const pattern = document.getElementById("pattern").value || "_".repeat(len);
-      const resultsDiv = document.getElementById("results");
-      const statusDiv = document.getElementById("status");
 
-      resultsDiv.innerHTML = "";
-      statusDiv.textContent = "Generating combinations...";
+      document.getElementById("startBtn").style.display = "none";
+      document.getElementById("stopBtn").style.display = "block";
 
+      const chars = [...letters, ...numbers, ...specials];
       const combos = [];
+
       function generate(prefix, i) {
         if (i === pattern.length) {
           combos.push(prefix);
@@ -126,34 +136,40 @@
           generate(prefix + pattern[i], i + 1);
         }
       }
-      generate("", 0);
 
-      statusDiv.textContent = `Generated ${combos.length} usernames. Checking...`;
+      statusDiv.textContent = "Generating usernames...";
+      generate("", 0);
+      statusDiv.textContent = `Checking ${combos.length} usernames...`;
+
       let available = 0;
 
       for (let i = 0; i < combos.length; i++) {
+        if (stopFlag) break;
+
         const username = combos[i];
-        try {
-          const res = await fetch(api + username);
-          const data = await res.json();
-          const el = document.createElement("div");
-          el.className = "username-line";
+        const res = await fetch(api + username);
+        const data = await res.json();
 
-          if (data.available) {
-            el.innerHTML = `✅ <span class='ok'>${username}</span> <button class='copy-btn' onclick="navigator.clipboard.writeText('${username}')">copy</button>`;
-            available++;
-          } else {
-            el.innerHTML = `❌ <span class='bad'>${username}</span>`;
-          }
+        const el = document.createElement("div");
+        el.className = "username-line";
 
-          resultsDiv.appendChild(el);
-          statusDiv.textContent = `Checked ${i + 1}/${combos.length} — ${available} available`;
-        } catch (err) {
-          console.error(err);
+        if (data.available) {
+          el.innerHTML = `✅ <span class='ok'>${username}</span> <button class='copy-btn' onclick="navigator.clipboard.writeText('${username}')">copy</button>`;
+          available++;
+        } else {
+          el.innerHTML = `❌ <span class='bad'>${username}</span>`;
         }
+
+        document.getElementById("results").appendChild(el);
+        statusDiv.textContent = `Checked ${i + 1}/${combos.length} — ${available} available`;
       }
-      statusDiv.textContent = `✅ Done — ${available} available usernames`;
-    };
+
+      if (!stopFlag) {
+        statusDiv.textContent = `✅ Completed — ${available} usernames available`;
+      }
+      document.getElementById("startBtn").style.display = "block";
+      document.getElementById("stopBtn").style.display = "none";
+    }
   </script>
 </body>
 </html>
