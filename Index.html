@@ -1,0 +1,303 @@
+<!--
+File 1: index.html (paste this as the root file of your site)
+File 2: netlify/functions/check.js (Netlify serverless function to bypass CORS and check Instagram)
+File 3: netlify.toml (Netlify config)
+
+I put all three files below in this single document so you can copy each into your project. Do NOT expose the function to public scrapers; use rate-limits and limits in the UI.
+--><!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Findavgec — Instagram Username Finder</title>
+  <style>
+    /* Simple, professional CSS — tweak as you like */
+    :root{
+      --bg:#0f1724; --card:#0b1220; --accent:#7c3aed; --muted:#9aa4b2; --glass: rgba(255,255,255,0.03);
+      --ok:#10b981; --bad:#ef4444;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{background:linear-gradient(180deg,#071029 0%, #071425 60%); color:#e6eef5; display:flex; align-items:center; justify-content:center; padding:32px}
+    .wrap{width:100%; max-width:980px}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#06b6d4);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:20px}
+    .title{font-size:20px;font-weight:700}
+    .card{background:var(--card); border-radius:12px; padding:20px; box-shadow:0 6px 30px rgba(4,6,10,0.6);}
+    label{display:block;font-size:12px;color:var(--muted); margin-bottom:6px}
+    .row{display:flex;gap:12px; margin-bottom:12px}
+    input[type=text], input[type=number], textarea, select{width:100%; padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06); background:var(--glass); color:inherit}
+    .controls{display:flex;gap:10px;align-items:center}
+    button{background:linear-gradient(180deg,var(--accent),#5b21b6); border:none;color:white;padding:10px 12px;border-radius:8px;font-weight:600;cursor:pointer}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    .results{margin-top:14px; max-height:420px; overflow:auto; padding:12px; border-radius:8px; background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);}
+    .item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;margin-bottom:6px}
+    .item .name{font-family:monospace}
+    .muted{font-size:13px;color:var(--muted)}
+    .badge{padding:6px 8px;border-radius:999px;font-weight:700}
+    .badge.ok{background:rgba(16,185,129,0.12); color:var(--ok);}
+    .badge.bad{background:rgba(239,68,68,0.08); color:var(--bad);}
+    .tiny{font-size:12px;color:var(--muted)}
+    .footer{margin-top:10px;color:var(--muted);font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">AV</div>
+      <div>
+        <div class="title">Findavgec — Instagram Username Finder</div>
+        <div class="muted">Generate username combinations & check availability (Netlify serverless required)</div>
+      </div>
+    </header><div class="card">
+  <div style="display:grid;grid-template-columns:1fr 260px;gap:12px;align-items:start">
+    <div>
+      <label>Length (total characters)</label>
+      <input id="length" type="number" min="1" max="12" value="4" />
+
+      <label style="margin-top:10px">Pattern (use underscore _ for wildcard)<br><span class="tiny">Example: a__y or _it__n (pattern length must match Length)</span></label>
+      <input id="pattern" type="text" placeholder="Use _ for blanks. Leave empty to generate all combos" />
+
+      <div style="display:flex;gap:10px;margin-top:10px;align-items:center">
+        <label style="margin:0"><input id="letters" type="checkbox" checked/> Letters (a-z)</label>
+        <label style="margin:0"><input id="digits" type="checkbox" checked/> Digits (0-9)</label>
+        <label style="margin:0"><input id="dot" type="checkbox" checked/> Dot (.)</label>
+        <label style="margin:0"><input id="uscore" type="checkbox" checked/> Underscore (_)</label>
+      </div>
+
+      <label style="margin-top:10px">Advanced: fixed characters at any position (optional)</label>
+      <input id="fixed" type="text" placeholder="e.g. a__y (will override pattern if provided)" />
+
+      <label style="margin-top:10px">Max combinations to check in one run (to avoid rate-limits)</label>
+      <input id="maxCheck" type="number" min="10" max="5000" value="1200" />
+
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button id="generate">Generate & Check</button>
+        <button id="stop" class="btn-ghost">Stop</button>
+        <button id="copyAll" class="btn-ghost">Copy available</button>
+        <button id="download" class="btn-ghost">Download .txt</button>
+      </div>
+
+      <div class="footer">Note: This tool uses a serverless function (Netlify) to check Instagram to avoid CORS. Excessive automated checks may trigger Instagram protections — keep runs moderate and wait between big batches.</div>
+    </div>
+
+    <div>
+      <div class="muted">Status</div>
+      <div id="statusBox" class="card" style="margin-top:8px;padding:12px;background:transparent;border-radius:8px;box-shadow:none">
+        <div class="tiny">Generated: <span id="generated">0</span></div>
+        <div class="tiny">Checked: <span id="checked">0</span></div>
+        <div class="tiny">Available: <span id="available">0</span></div>
+        <div class="tiny">Taken: <span id="taken">0</span></div>
+        <div class="tiny">Batches sent: <span id="batches">0</span></div>
+        <div style="height:10px"></div>
+        <progress id="progress" value="0" max="100" style="width:100%"></progress>
+      </div>
+
+      <div style="margin-top:12px">
+        <label class="muted">Quick tips</label>
+        <ul class="tiny" style="color:var(--muted);padding-left:16px">
+          <li>Prefer shorter runs (≤ 1,200) to avoid rate-limits.</li>
+          <li>Use pattern or fixed inputs to drastically cut combinations.</li>
+          <li>Netlify function performs server-side checks — faster & bypasses CORS.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:12px">
+    <label>Results (<span id="resultCount">0</span> available)</label>
+    <div id="results" class="results"></div>
+  </div>
+</div>
+
+  </div>  <script>
+    // Frontend logic. NOTE: this expects a serverless function at /.netlify/functions/check
+    (function(){
+      const letters = 'abcdefghijklmnopqrstuvwxyz';
+      const digits = '0123456789';
+      const dot = '.';
+      const uscore = '_';
+
+      const $ = id => document.getElementById(id);
+      let stopFlag = false;
+
+      function buildCharset(){
+        let s = '';
+        if($('letters').checked) s += letters;
+        if($('digits').checked) s += digits;
+        if($('dot').checked) s += dot;
+        if($('uscore').checked) s += uscore;
+        return s;
+      }
+
+      function validatePattern(pat,len){
+        if(!pat) return true;
+        return pat.length === len;
+      }
+
+      function generateFromPattern(pattern, charset){
+        // recursive generator returns array (but we guard total size)
+        const res = [];
+        function build(pref,i){
+          if(stopFlag) return;
+          if(i === pattern.length){ res.push(pref); return; }
+          const c = pattern[i];
+          if(c === '_'){
+            for(const ch of charset){ if(res.length>maxGlobal) break; build(pref+ch,i+1); }
+          } else {
+            build(pref + c, i+1);
+          }
+        }
+        build('',0);
+        return res;
+      }
+
+      // safe cap for generation to prevent freezes
+      let maxGlobal = 20000;
+
+      async function postCheck(batch){
+        // sends POST to Netlify function
+        const res = await fetch('/.netlify/functions/check', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({usernames: batch})
+        });
+        if(!res.ok) throw new Error('Server error ' + res.status);
+        return await res.json();
+      }
+
+      function renderItem(name, available){
+        const wrap = document.createElement('div'); wrap.className='item';
+        const n = document.createElement('div'); n.className='name'; n.textContent = name;
+        const right = document.createElement('div');
+        const badge = document.createElement('span'); badge.className = 'badge ' + (available ? 'ok' : 'bad'); badge.textContent = available ? 'AVAILABLE' : 'TAKEN';
+        const copy = document.createElement('button'); copy.className='btn-ghost'; copy.style.marginLeft='8px'; copy.textContent='Copy';
+        copy.onclick = () => navigator.clipboard.writeText(name);
+        right.appendChild(badge); right.appendChild(copy);
+        wrap.appendChild(n); wrap.appendChild(right);
+        return wrap;
+      }
+
+      $('stop').onclick = ()=> stopFlag = true;
+      $('copyAll').onclick = ()=>{
+        const arr = Array.from(document.querySelectorAll('.item')).filter(el=>el.querySelector('.badge').classList.contains('ok')).map(el=>el.querySelector('.name').textContent);
+        if(arr.length===0) return alert('No available usernames yet');
+        navigator.clipboard.writeText(arr.join('\n')).then(()=>alert('Copied '+arr.length+' usernames'));
+      };
+      $('download').onclick = ()=>{
+        const arr = Array.from(document.querySelectorAll('.item')).filter(el=>el.querySelector('.badge').classList.contains('ok')).map(el=>el.querySelector('.name').textContent);
+        if(arr.length===0) return alert('No available usernames yet');
+        const blob = new Blob([arr.join('\n')], {type:'text/plain'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'available_usernames.txt'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      }
+
+      $('generate').onclick = async ()=>{
+        stopFlag = false;
+        $('results').innerHTML=''; $('generated').textContent='0'; $('checked').textContent='0'; $('available').textContent='0'; $('taken').textContent='0'; $('batches').textContent='0'; $('progress').value=0; $('resultCount').textContent='0';
+
+        const len = parseInt($('length').value,10);
+        const patternInput = $('pattern').value.trim();
+        const fixed = $('fixed').value.trim();
+        const maxCheck = parseInt($('maxCheck').value,10) || 1200;
+        maxGlobal = Math.max(20000, maxCheck * 20); // generation safety
+
+        const pattern = fixed || patternInput || (new Array(len).fill('_').join(''));
+        if(!validatePattern(pattern, len)) return alert('Pattern length must match Length');
+        const charset = buildCharset();
+        if(!charset) return alert('Choose at least one character group');
+
+        // quick estimate of total combinations
+        const wildcards = (pattern.match(/_/g)||[]).length;
+        const total = Math.pow(charset.length, wildcards);
+        if(total > 10000000) {
+          if(!confirm('Estimated combinations: '+total+". This is very large and may take a long time or be blocked. Continue?")) return;
+        }
+
+        // generate (but stop if too large for browser)
+        const combos = generateFromPattern(pattern, charset);
+        $('generated').textContent = combos.length;
+
+        // batch and send to serverless function in batches
+        const batchSize = Math.min( maxCheck, 2000 );
+        let checked=0, available=0, taken=0, batches=0;
+        for(let i=0;i<combos.length;i+=batchSize){
+          if(stopFlag) break;
+          const batch = combos.slice(i,i+batchSize);
+          batches++;
+          $('batches').textContent = batches;
+          try{
+            const result = await postCheck(batch);
+            // server returns {username: true/false}
+            for(const u of batch){
+              const isAvailable = !!result[u];
+              const node = renderItem(u, isAvailable);
+              $('results').appendChild(node);
+              if(isAvailable) available++; else taken++;
+            }
+            checked += batch.length;
+            $('checked').textContent = checked;
+            $('available').textContent = available;
+            $('taken').textContent = taken;
+            $('progress').value = Math.min(100, Math.round(checked/combos.length*100));
+            $('resultCount').textContent = available;
+          }catch(err){
+            console.error('Batch error',err); alert('Server error: '+err.message); break;
+          }
+          // small delay to be polite (reduce chance of Instagram blocks)
+          await new Promise(r=>setTimeout(r, 400));
+        }
+
+      };
+
+    })();
+  </script>  <!--
+  ============================================
+  Below: Netlify serverless function (node) — save as: netlify/functions/check.js
+  ============================================
+  -->  <!--
+  // netlify/functions/check.js
+  const fetch = require('node-fetch');
+
+  exports.handler = async function(event, context) {
+    try{
+      const body = JSON.parse(event.body || '{}');
+      const usernames = Array.isArray(body.usernames) ? body.usernames.slice(0, 2000) : [];
+      const results = {};
+      const concurrency = 10;
+      let idx = 0;
+
+      async function worker(){
+        while(idx < usernames.length){
+          const i = idx++; const u = usernames[i];
+          try{
+            // Instagram user page endpoint — server-side avoids CORS
+            const url = `https://www.instagram.com/${encodeURIComponent(u)}/?__a=1&__d=dis`;
+            const res = await fetch(url, {method:'GET', headers:{'User-Agent':'Mozilla/5.0'}});
+            results[u] = (res.status === 404);
+          } catch(e){
+            // on error, mark as false (taken) to be safe
+            results[u] = false;
+          }
+        }
+      }
+
+      const workers = Array.from({length:concurrency}).map(()=>worker());
+      await Promise.all(workers);
+      return { statusCode:200, body: JSON.stringify(results) };
+    }catch(err){
+      return { statusCode:500, body: JSON.stringify({error: err.message}) };
+    }
+  };
+  -->  <!--
+  ============================================
+  netlify.toml (place at repository root)
+  ============================================
+  [build]
+    publish = "."
+    functions = "netlify/functions"
+  
+  [[redirects]]
+    from = "/api/*"
+    to = "/.netlify/functions/:splat"
+    status = 200
+  --></body>
+</html>
