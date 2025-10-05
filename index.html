@@ -81,7 +81,7 @@
       width: 0%;
       background: #00e676;
       border-radius: 10px;
-      transition: width 0.1s ease;
+      transition: width 0.2s ease;
     }
 
     .results {
@@ -184,7 +184,9 @@
       let totalChecked = 0;
       let availableCount = 0;
 
-      // Internal mini-task queue — slightly optimized (not fully parallel)
+      const variableCount = fixed.filter(x => x === '').length;
+      const totalCombos = Math.pow(chars.length, variableCount);
+
       async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
       async function checkUsername(username) {
@@ -197,45 +199,56 @@
         }
       }
 
-      async function generateCombinations(prefix, index) {
-        if (stopFlag) return;
-        if (index === len) {
+      async function batchCheck(usernames) {
+        const results = await Promise.all(usernames.map(u => checkUsername(u)));
+        results.forEach((isAvailable, i) => {
           totalChecked++;
-          const available = await checkUsername(prefix);
-          if (available) {
+          if (isAvailable) {
             availableCount++;
             const div = document.createElement('div');
-            div.textContent = prefix;
+            div.textContent = usernames[i];
             div.className = 'username';
-            div.onclick = () => navigator.clipboard.writeText(prefix);
+            div.onclick = () => navigator.clipboard.writeText(usernames[i]);
             resultsDiv.appendChild(div);
-            counter.innerText = `Available Usernames: ${availableCount}`;
           }
+        });
 
-          const totalCombos = Math.pow(chars.length, len);
-          const progress = Math.min((totalChecked / totalCombos) * 100, 100);
-          progressBar.style.width = `${progress}%`;
-          progressText.innerText = `Progress: ${progress.toFixed(1)}% | Checked: ${totalChecked}`;
-          await sleep(15); // small delay to reduce request overload
+        const progress = Math.min((totalChecked / totalCombos) * 100, 100);
+        progressBar.style.width = `${progress}%`;
+        progressText.innerText = `Progress: ${progress.toFixed(1)}% | Checked: ${totalChecked}`;
+        counter.innerText = `Available Usernames: ${availableCount}`;
+      }
+
+      async function generate(prefix, index, batch) {
+        if (stopFlag) return;
+        if (index === len) {
+          batch.push(prefix);
+          if (batch.length >= 10) {
+            await batchCheck(batch);
+            batch.length = 0;
+            await sleep(20);
+          }
           return;
         }
 
         const char = fixed[index];
         if (char) {
-          await generateCombinations(prefix + char.toLowerCase(), index + 1);
+          await generate(prefix + char.toLowerCase(), index + 1, batch);
         } else {
           for (let c of chars) {
-            await generateCombinations(prefix + c, index + 1);
+            await generate(prefix + c, index + 1, batch);
             if (stopFlag) return;
           }
         }
       }
 
-      generateCombinations('', 0).then(() => {
-        if (!stopFlag) {
-          alert(`✅ Finished checking! ${availableCount} usernames available.`);
-        }
-      });
+      const batch = [];
+      await generate('', 0, batch);
+      if (batch.length) await batchCheck(batch);
+
+      if (!stopFlag) {
+        alert(`✅ Finished checking! ${availableCount} usernames available.`);
+      }
     }
 
     function stopChecking() {
